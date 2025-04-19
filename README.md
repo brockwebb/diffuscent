@@ -1,136 +1,117 @@
-# DiffuScent
+# DiffuScent - Gas Diffusion Simulator
 
-A scientifically accurate gas diffusion simulator with an engaging, humorous interface that teaches fluid dynamics through the relatable scenario of fart detection. This simulator provides both entertainment and education about gas movement, diffusion rates, and detection thresholds.
+DiffuScent is a scientifically accurate gas diffusion simulator that models how flatulence spreads in a room environment. The project provides an engaging way to understand fluid dynamics and gas diffusion through a relatable scenario.
 
 ## Project Overview
 
-Ever wondered if it's safe to break wind in a confined space? Science has the answer! This simulator models gas diffusion in a room with realistic physics, letting you determine if your gaseous emission will be detected by others. Educational content is delivered through our friendly mascot, Farty.
+This simulator uses the finite volume method to model gas diffusion in a room, allowing users to:
 
-## Core Technologies
+- Simulate gas dispersion in a 3D space
+- Visualize concentration changes over time
+- Determine detection times at different locations
+- Experiment with different gas properties and room configurations
 
-This project leverages several powerful open-source libraries:
+## Scientific Background
 
-- **FluidDyn/FluidSim**: Core physics simulation engine, providing high-performance fluid dynamics calculations with Python interfaces and C++/Cython optimizations
-- **Streamlit**: User interface framework for building interactive web applications
-- **Plotly**: 3D visualization library for rendering gas concentration
+### Diffusion Physics
 
-We selected FluidDyn/FluidSim after thorough evaluation of several potential libraries (FiPy, FEniCS, OpenFOAM). FluidDyn offers the optimal balance of performance, ease of development, and educational focus for our specific needs. See `docs/library_selection.md` for details.
+The simulation is based on Fick's Second Law of diffusion:
 
-## Features
+$$\frac{\partial C}{\partial t} = D \nabla^2 C$$
 
-- **Multiple Gas Profiles**: Choose between different preset flatulence compositions (Veggie Burger, Taco Bell Banger, Egg's Revenge, Silent But Deadly)
-- **Physics Models**: Two simulation options - quick diffusion model and advanced diffusion-advection model with buoyancy
-- **Temperature Effects**: Adjust room temperature to see how it affects gas diffusion rates
-- **3D Visualization**: Watch the gas cloud spread in an interactive 3D view with complementary 2D cross-sections
-- **Detection Metrics**: Get a "SAFE" or "BUSTED" verdict with countdown to detection
-- **Educational Content**: Learn real gas diffusion physics through humorous scenarios
+Where:
+- $C$ is the concentration of gas (in parts per million, ppm)
+- $t$ is time (in seconds)
+- $D$ is the diffusion coefficient (in m²/s)
+- $\nabla^2$ is the Laplacian operator (second spatial derivative)
+
+This partial differential equation describes how concentration changes over time due to diffusion. The diffusion coefficient $D$ is a property of the specific gas and determines how quickly it spreads.
+
+### Gas Properties
+
+Different gas profiles in the simulator are based on real properties:
+
+| Gas Component | Diffusion Coefficient (m²/s) | Detection Threshold (ppm) |
+|---------------|------------------------------|---------------------------|
+| Methane       | 1.76 × 10⁻⁵                  | ~5000 (odorless)         |
+| Hydrogen Sulfide | 1.76 × 10⁻⁵              | ~0.5 (rotten egg smell)  |
+| Carbon Dioxide | 1.42 × 10⁻⁵                | ~5000 (odorless)         |
+
+Flatulence typically contains a mixture of these gases, with the sulfur-containing compounds (like hydrogen sulfide) responsible for the characteristic odor despite being present in small amounts.
 
 ## Installation
 
+### Prerequisites
+
+- Python 3.7 or higher
+- FiPy (the finite volume PDE solver)
+- NumPy
+- Matplotlib
+- PyYAML
+
+### Install Dependencies
+
 ```bash
-# Clone the repository
-git clone https://github.com/username/DiffuScent.git
-cd DiffuScent
-
-# Create a virtual environment
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run the application
-streamlit run src/app.py
+pip install fipy numpy matplotlib pyyaml
 ```
 
-## Project Structure
+Note: FiPy may require additional dependencies depending on your system. See the [FiPy documentation](https://www.ctcms.nist.gov/fipy/INSTALLATION.html) for more details.
 
-```
-DiffuScent/
-│
-├── README.md                 # Project description and setup instructions
-├── LICENSE                   # Open source license (MIT)
-├── .gitignore                # Standard Python/JS gitignore
-├── requirements.txt          # Project dependencies
-│
-├── docs/
-│   ├── physics.md            # Documentation of physics models and assumptions
-│   ├── library_selection.md  # Library selection rationale
-│   ├── user-guide.md         # How to use the simulator
-│   └── future-ideas.md       # Potential future enhancements
-│
-├── src/
-│   ├── physics/              # Physics simulation code using FluidDyn/FluidSim
-│   │   ├── diffusion.py      # Basic diffusion model
-│   │   ├── advection.py      # Advanced diffusion-advection model
-│   │   ├── gas_profiles.py   # Gas composition definitions
-│   │   └── detection.py      # Detection threshold calculations
-│   │
-│   ├── visualization/        # Visualization components
-│   │   ├── renderer.py       # 3D/2D rendering logic
-│   │   ├── colors.py         # Color mapping for concentrations
-│   │   └── camera.py         # View management
-│   │
-│   ├── ui/                   # Streamlit-based user interface
-│   │   ├── main_screen.py    # Main interface
-│   │   ├── profile_selector.py # Fart profile selector
-│   │   ├── room_setup.py     # Room dimension and position setup
-│   │   └── mascot.py         # Farty mascot animations and dialog
-│   │
-│   └── app.py                # Main Streamlit application entry point
-│
-└── tests/
-    ├── test_diffusion.py     # Tests for diffusion models
-    ├── test_visualization.py # Tests for visualization
-    └── test_detection.py     # Tests for detection calculations
+## Usage
+
+### Basic Usage
+
+Run the model with default settings:
+
+```bash
+python basic_diffusion_model.py
 ```
 
-## Development Roadmap
+Run with a custom configuration file:
 
-1. **Phase 1: Core Physics (2-3 weeks)**
-   - Implement basic diffusion model with FluidDyn/FluidSim
-   - Create gas profile definitions
-   - Add temperature effects
-   - Implement detection threshold logic
+```bash
+python basic_diffusion_model.py config.yaml
+```
 
-2. **Phase 2: Visualization (2-3 weeks)**
-   - Develop 3D isometric view
-   - Implement 2D cross-sections
-   - Create concentration colormap
-   - Setup camera controls
+### Configuration
 
-3. **Phase 3: User Interface (2-3 weeks)**
-   - Develop profile selection screen
-   - Create room setup interface
-   - Design and animate Farty mascot
-   - Implement simulation controls
+All simulation parameters can be customized through a YAML configuration file. See `config.yaml` for a complete example with comments explaining each parameter.
 
-4. **Phase 4: Integration and Testing (1-2 weeks)**
-   - Connect physics with visualization
-   - Implement time stepping
-   - Add result calculations and display
-   - Perform testing and optimization
+Key parameters include:
+- Room dimensions
+- Gas properties (diffusion coefficient, initial volume)
+- Simulation time and time step
+- Visualization settings
 
-## Future Directions
+## Understanding the Output
 
-1. **Advanced Fluid Dynamics**
-   - Full Navier-Stokes implementation
-   - Turbulence modeling approaches
-   - Computational requirements and optimization techniques
+The simulation produces several outputs:
 
-2. **Environmental Factors**
-   - HVAC effects on gas distribution
-   - Furniture and obstacle interactions
-   - Room geometry beyond simple rectangles
+1. **Console Output**: Shows simulation progress and detection events
+2. **2D Slice Visualizations**: Shows gas concentration at nose height (1.6m)
+3. **Concentration vs. Time Plot**: Shows how maximum concentration changes over time
 
-3. **Enhanced User Experience**
-   - Multiple detector positions
-   - Custom gas profile creation
-   - Video export and sharing capabilities
+The gas concentration is measured in parts per million (ppm), which represents the number of gas molecules per million air molecules.
+
+## Model Limitations
+
+This simplified model has several limitations:
+
+1. It only considers diffusion, not advection (air currents)
+2. It assumes constant temperature and pressure
+3. It doesn't account for reactions between gases
+4. It uses a simple detection threshold rather than a more complex olfactory model
+
+Future versions may address these limitations for more realistic simulations.
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions to improve the model are welcome! Key areas for enhancement include:
+
+- Adding advection to model air currents
+- Implementing temperature effects on diffusion
+- Adding more realistic gas profiles
+- Improving visualization options
 
 ## License
 
@@ -138,6 +119,5 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 
-- The FluidDyn project for their excellent fluid dynamics libraries
-- The Streamlit team for their interactive app framework
-- Everyone who's ever been in an awkward social situation involving flatulence
+- The FiPy team at NIST for their excellent finite volume PDE solver
+- The FluidDyn project for inspiration and reference implementations
