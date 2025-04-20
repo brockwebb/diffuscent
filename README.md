@@ -121,3 +121,128 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - The FiPy team at NIST for their excellent finite volume PDE solver
 - The FluidDyn project for inspiration and reference implementations
+
+# DiffuScent Phase 1 Implementation
+
+This document describes the implementation of Phase 1 improvements to the DiffuScent simulation as outlined in the project roadmap.
+
+## Performance Optimizations
+
+The following performance optimizations have been implemented:
+
+1. **Reduced Mesh Resolution**
+   - Changed from 50x40x25 to 25x20x12 cells
+   - Provides approximately 8x speedup while maintaining adequate spatial resolution
+   - Grid spacing is now 20cm in each dimension, sufficient for educational demonstration
+
+2. **Increased Time Step**
+   - Changed from 0.1s to 1.0s timestep
+   - Verified against diffusion stability criteria (Δt ≤ Δx²/2D)
+   - Yields 10x speedup in time integration
+
+3. **Deferred Visualization**
+   - Now only generates visualization at end of computation
+   - Stores raw data during simulation to avoid visualization overhead
+   - Separation of computation and visualization improves overall performance
+
+4. **Parallel Processing**
+   - Added optional parallel processing support
+   - Implemented simple fallback to sequential processing when not available
+   - Future implementation will include domain decomposition for better parallelization
+
+## Physics Enhancements
+
+The following physics enhancements have been implemented:
+
+1. **Initial Momentum**
+   - Added initial velocity vector (3 m/s at 30° downward angle)
+   - Creates a realistic "jet" effect at release point
+   - Gaussian spatial profile for smooth transition of velocity field
+
+2. **Buoyancy Model**
+   - Implemented temperature-dependent buoyancy based on gas density
+   - Calculates buoyancy force from density difference between gas mixture and surrounding air
+   - Updates vertical velocity component based on local gas concentration
+
+3. **Room Air Circulation**
+   - Added basic circular air current pattern in room
+   - Configurable strength parameter (default 0.2 m/s)
+   - Support for different pattern types (basic, HVAC)
+
+## Visualization Improvements
+
+The following visualization improvements have been implemented:
+
+1. **Logarithmic Concentration Scale**
+   - Added logarithmic scale option for concentration visualization
+   - Provides much better visibility of gas movement at low concentrations
+   - Configurable via settings
+
+2. **Detection Threshold Markers**
+   - Added visual indicators for detection threshold boundaries
+   - Red markers show where concentration equals detection threshold
+   - Makes it easier to understand when detection will occur
+
+3. **Enhanced Color Mapping**
+   - Improved color scale with configurable colormap
+   - Better contrast at low concentrations
+   - Added detection markers with appropriate labels
+
+## Gas Profile System
+
+A comprehensive gas profile system has been implemented:
+
+1. **Multiple Gas Profiles**
+   - Standard: Balanced profile with moderate volume
+   - Veggie Burger: Higher in hydrogen, lower in sulfur compounds
+   - Taco Bell Banger: High volume with extra methane
+   - Egg's Revenge: Sulfur-rich profile
+   - Silent But Deadly: Small volume but high sulfur content
+
+2. **Realistic Gas Properties**
+   - Proper diffusion coefficients for each gas component
+   - Temperature-dependent properties
+   - Density calculations based on composition and ideal gas law
+
+3. **Detection System**
+   - Uses realistic odor detection thresholds
+   - Multiple detector positions with named identifiers
+   - Time-to-detection calculation and reporting
+
+## Usage
+
+The improved simulation can be run as follows:
+
+```bash
+# Run simulation with default settings
+python app.py
+
+# Run with specific gas profile
+python gas_profiles.py --profile taco_bell
+python app.py
+
+# List available gas profiles
+python gas_profiles.py --list
+
+# Create visualizations from existing results
+python app.py --visualize-only --results-file results/simulation_20250419_123456.pkl
+```
+
+## Next Steps
+
+With Phase 1 complete, we will move on to Phase 2 enhancements:
+
+1. Improve Transport Model
+   - Implement more sophisticated advection terms
+   - Add temperature-dependent buoyancy effects
+   - Model impact of breathing on local air currents
+
+2. Add Environmental Factors
+   - HVAC effects (air vents, return registers)
+   - Door/window effects on airflow
+   - Temperature gradients in the room
+
+3. Enhance Gas Properties
+   - Multi-component gas diffusion
+   - Temperature effects on diffusion coefficients
+   - Concentration-dependent detection thresholds

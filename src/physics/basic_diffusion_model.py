@@ -259,33 +259,36 @@ class DiffuscentModel:
         
         # Time stepping loop
         for step in range(steps):
-            # Update current time
+            # Advance time
             self.current_time += dt
             
-            # Solve the equation for this time step
+            # Solve the diffusion equation for this time step
             self.eq.solve(var=self.concentration, dt=dt)
             
             # Store data for plotting
             self.time_points.append(self.current_time)
-            self.max_concentrations.append(self.concentration.max)
+            self.max_concentrations.append(self.concentration.value.max())
             
             # Plot at specified intervals
             if self.current_time >= next_plot_time:
                 self._visualize_results()
                 next_plot_time += plot_interval
             
-            # Check for detection at specific points
+            # Check for detection events
             self._check_detection()
             
-            # Print progress
+            # Periodic console update
             if step % 10 == 0:
-                print(f"Time: {self.current_time:.1f}s, Max concentration: {self.concentration.max:.2f} ppm")
+                current_max = self.concentration.value.max()
+                print(f"Time: {self.current_time:.1f}s, Max concentration: {current_max:.2f} ppm")
         
-        # Final visualization
+        # Final visualization & plot
         self._visualize_results(is_final=True)
         self._plot_concentration_vs_time()
         
         print("Simulation complete.")
+
+
     
     def _check_detection(self):
         """
@@ -339,7 +342,7 @@ class DiffuscentModel:
         data = self._get_slice_data(nose_idx, axis='z')
         
         # Create the figure
-        fig, ax = plt.subplots(figsize=(10, 8))
+        plt.figure(figsize=(10, 8))
         
         # Create a meshgrid for plotting
         x = np.linspace(0, self.config['room']['width'], self.mesh.nx)
@@ -348,26 +351,24 @@ class DiffuscentModel:
         
         # Plot the contour
         levels = self.config['visualization']['contour_levels']
-        contour = ax.contourf(X, Y, data.T, levels=levels, cmap='YlOrRd')
+        contour = plt.contourf(X, Y, data.T, levels=levels, cmap='YlOrRd')
         
         # Add a colorbar
-        cbar = fig.colorbar(contour)
+        cbar = plt.colorbar(contour)
         cbar.set_label('Concentration (ppm)')
         
         # Add title and labels
-        ax.set_title(f'Gas Concentration at Nose Height ({nose_height}m), t={self.current_time:.1f}s')
-        ax.set_xlabel('X (m)')
-        ax.set_ylabel('Y (m)')
+        plt.title(f'Gas Concentration at Nose Height ({nose_height}m), t={self.current_time:.1f}s')
+        plt.xlabel('X (m)')
+        plt.ylabel('Y (m)')
         
         # Save the figure if requested
         if self.config['visualization']['save_plots']:
             plt.savefig(f'concentration_t{self.current_time:.0f}.png')
+            print(f"Saved plot: concentration_t{self.current_time:.0f}.png")
         
-        # Close the figure if not final to avoid memory issues
-        if not is_final:
-            plt.close(fig)
-        else:
-            plt.show()
+        # Don't display interactively - just save to file
+        plt.close()
     
     def _get_slice_data(self, idx, axis='z'):
         """
@@ -441,8 +442,15 @@ def main():
         print(f"Loading configuration from: {config_file}")
         model = DiffuscentModel(config_file)
     else:
-        print("Using default configuration")
-        model = DiffuscentModel()
+        # Look for the default config in the configs directory
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        config_path = os.path.join(script_dir, "..", "configs", "config.yaml")
+        if os.path.exists(config_path):
+            print(f"Loading default configuration from: {config_path}")
+            model = DiffuscentModel(config_path)
+        else:
+            print("Using hardcoded default configuration")
+            model = DiffuscentModel()
     
     # Run the simulation
     model.run_simulation()

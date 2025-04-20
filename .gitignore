@@ -2,6 +2,12 @@
 *.DS_Store
 *.tmp
 
+# local folders
+archive/
+
+results/*
+!results/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

@@ -1,0 +1,91 @@
+# DiffuScent Gas Profiles
+# Collection of preset gas profiles with different compositions
+
+# Gas properties
+# These are reference values used by the simulation
+gas_properties:
+  # Molecular weights (g/mol)
+  molecular_weights:
+    methane: 16.04
+    hydrogen_sulfide: 34.08
+    nitrogen: 28.01
+    oxygen: 32.0
+    carbon_dioxide: 44.01
+    hydrogen: 2.02
+    ammonia: 17.03
+    sulfur_dioxide: 64.07
+  
+  # Diffusion coefficients in air at 20°C (m²/s)
+  diffusion_coefficients:
+    methane: 0.000022
+    hydrogen_sulfide: 0.000018
+    nitrogen: 0.000020
+    oxygen: 0.000021
+    carbon_dioxide: 0.000016
+    hydrogen: 0.000061
+    ammonia: 0.000023
+    sulfur_dioxide: 0.000013
+  
+  # Odor detection thresholds (ppm)
+  odor_thresholds:
+    hydrogen_sulfide: 0.00047  # Very low threshold - strong smell
+    ammonia: 5.0
+    sulfur_dioxide: 0.1
+    methane: 5000.0  # Not detectable by smell
+    carbon_dioxide: 10000.0  # Not detectable by smell
+
+# Gas profiles
+profiles:
+  standard:
+    description: "Standard balanced profile with moderate volume"
+    volume: 0.5  # liters
+    composition:
+      methane: 0.60
+      hydrogen_sulfide: 0.00001
+      carbon_dioxide: 0.20
+      nitrogen: 0.15
+      oxygen: 0.05
+  
+  veggie:
+    description: "Vegetarian diet profile - higher in hydrogen"
+    volume: 0.7  # liters
+    composition:
+      methane: 0.40
+      hydrogen: 0.30
+      hydrogen_sulfide: 0.000005  # Lower H2S
+      carbon_dioxide: 0.20
+      nitrogen: 0.09
+      oxygen: 0.01
+  
+  taco_bell:
+    description: "High volume with extra methane - the \"Taco Bell Banger\""
+    volume: 1.2  # liters
+    composition:
+      methane: 0.70
+      hydrogen_sulfide: 0.00002  # Higher H2S
+      carbon_dioxide: 0.15
+      nitrogen: 0.10
+      hydrogen: 0.05
+  
+  egg_revenge:
+    description: "Sulfur-rich profile - \"Egg's Revenge\""
+    volume: 0.6  # liters
+    composition:
+      methane: 0.50
+      hydrogen_sulfide: 0.00005  # Much higher H2S
+      sulfur_dioxide: 0.00001
+      carbon_dioxide: 0.25
+      nitrogen: 0.15
+      oxygen: 0.10
+  
+  sbd:
+    description: "Small volume but high sulfur content - \"Silent But Deadly\""
+    volume: 0.2  # liters
+    composition:
+      methane: 0.30
+      hydrogen_sulfide: 0.0001  # Extremely high H2S
+      sulfur_dioxide: 0.00002
+      ammonia: 0.001
+      carbon_dioxide: 0.40
+      nitrogen: 0.20
+      oxygen: 0.10
