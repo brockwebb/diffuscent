@@ -262,6 +262,81 @@ def _room_wireframe(room_width, room_depth, room_height):
     return traces
 
 
+def make_room_grid_fig(room_width, room_depth, n_cols, n_rows, src_cell, det_cell):
+    """
+    Plotly scatter figure for 0.5m-cell room position picker.
+    Points laid out row-major: idx = row * n_cols + col.
+    Click detection uses pt["point_index"] — no customdata dependency.
+    """
+    cell_w = room_width / n_cols
+    cell_h = room_depth / n_rows
+
+    x_pts, y_pts, colors, sizes, texts = [], [], [], [], []
+
+    for row in range(n_rows):
+        for col in range(n_cols):
+            x_pts.append((col + 0.5) * cell_w)
+            y_pts.append((row + 0.5) * cell_h)
+            is_src = src_cell == (col, row)
+            is_det = det_cell == (col, row)
+            if is_src:
+                colors.append("limegreen")
+                sizes.append(18)
+                texts.append("💨")
+            elif is_det:
+                colors.append("crimson")
+                sizes.append(18)
+                texts.append("👃")
+            else:
+                colors.append("rgba(100,100,200,0.2)")
+                sizes.append(12)
+                texts.append("")
+
+    fig = go.Figure(
+        go.Scatter(
+            x=x_pts,
+            y=y_pts,
+            mode="markers+text",
+            marker=dict(
+                color=colors,
+                size=sizes,
+                symbol="square",
+                line=dict(color="rgba(80,80,180,0.3)", width=1),
+            ),
+            text=texts,
+            textposition="middle center",
+            textfont=dict(size=10),
+            hovertemplate="(%{x:.1f}m, %{y:.1f}m)<extra></extra>",
+        )
+    )
+    fig.update_layout(
+        xaxis=dict(
+            range=[-0.05 * room_width, room_width * 1.05],
+            showgrid=True,
+            gridcolor="#e0e0ee",
+            dtick=1.0,
+            ticksuffix="m",
+            zeroline=False,
+            title="",
+        ),
+        yaxis=dict(
+            range=[-0.05 * room_depth, room_depth * 1.05],
+            showgrid=True,
+            gridcolor="#e0e0ee",
+            dtick=1.0,
+            ticksuffix="m",
+            zeroline=False,
+            title="",
+        ),
+        paper_bgcolor="white",
+        plot_bgcolor="#f5f5ff",
+        margin=dict(l=30, r=5, t=5, b=30),
+        height=220,
+        showlegend=False,
+    )
+    return fig
+
+
 def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detector_pos):
     """
     Build a Plotly 3-D volume figure for a single snapshot.
@@ -613,6 +688,9 @@ def main():
         st.session_state.grid_src_cell = None  # (col, row) or None
     if "grid_det_cell" not in st.session_state:
         st.session_state.grid_det_cell = None  # (col, row) or None
+    # grid_gen increments on reset so the widget key is always unique → clears stale selection
+    if "grid_gen" not in st.session_state:
+        st.session_state.grid_gen = 0
 
     # ── Expander 1: The Room ─────────────────────────────────────────────────
     with st.sidebar.expander("🏠 The Room", expanded=False):
@@ -641,9 +719,11 @@ def main():
 
     # ── Expander 2: Set Your Positions ───────────────────────────────────────
     with st.sidebar.expander("📍 Set Your Positions", expanded=True):
-        # Grid dimensions: cap at 8×8, use int room dims
-        n_cols = max(3, min(8, int(room_width)))
-        n_rows = max(3, min(8, int(room_depth)))
+        # 0.5m × 0.5m cells; cap at 12×10 for sidebar readability
+        n_cols = max(4, min(12, round(room_width / 0.5)))
+        n_rows = max(4, min(10, round(room_depth / 0.5)))
+        cell_w = room_width / n_cols
+        cell_h = room_depth / n_rows
 
         # Validate stored cells are still in range (room may have shrunk)
         if st.session_state.grid_src_cell is not None:
@@ -670,32 +750,50 @@ def main():
         else:
             st.caption("✅ Placed! Click any cell to **reset**")
 
-        # Render grid — rows top-to-bottom (row n_rows-1 = "back of room")
-        for row in range(n_rows - 1, -1, -1):
-            btn_cols = st.columns(n_cols, gap="small")
-            for col in range(n_cols):
-                is_src = (src_cell == (col, row))
-                is_det = (det_cell == (col, row))
-                label = "💨" if is_src else ("👃" if is_det else "·")
-                if btn_cols[col].button(label, key=f"g_{col}_{row}", use_container_width=True):
-                    if phase == 0:
-                        st.session_state.grid_src_cell = (col, row)
-                        st.session_state.grid_phase = 1
-                    elif phase == 1:
-                        st.session_state.grid_det_cell = (col, row)
-                        st.session_state.grid_phase = 2
-                    else:
-                        # Reset
-                        st.session_state.grid_src_cell = None
-                        st.session_state.grid_det_cell = None
-                        st.session_state.grid_phase = 0
+        # Plotly click-to-place grid (0.5m cells).
+        # Key encodes phase + generation so each phase transition gives a fresh widget
+        # with no stale selection — avoids double-processing the same click.
+        chart_key = f"room_grid_{phase}_{st.session_state.grid_gen}"
+        grid_fig = make_room_grid_fig(room_width, room_depth, n_cols, n_rows, src_cell, det_cell)
+        grid_event = st.plotly_chart(
+            grid_fig,
+            use_container_width=True,
+            on_select="rerun",
+            selection_mode="points",
+            key=chart_key,
+        )
 
-        # Convert grid cell (col, row) → room coordinate (center of cell in meters)
+        # Process click — use point_index (robust) with x,y fallback
+        pts = grid_event.selection.points if grid_event and grid_event.selection else []
+        if pts:
+            pt = pts[0]
+            # point_index encodes position: idx = row * n_cols + col
+            idx = pt.get("point_index")
+            if idx is not None:
+                col_c = int(idx) % n_cols
+                row_c = int(idx) // n_cols
+            else:
+                # fallback: derive from click coordinates
+                col_c = max(0, min(n_cols - 1, int(pt.get("x", 0) / cell_w)))
+                row_c = max(0, min(n_rows - 1, int(pt.get("y", 0) / cell_h)))
+
+            if phase == 0:
+                st.session_state.grid_src_cell = (col_c, row_c)
+                st.session_state.grid_phase = 1
+            elif phase == 1:
+                st.session_state.grid_det_cell = (col_c, row_c)
+                st.session_state.grid_phase = 2
+            else:
+                # Reset — bump grid_gen so room_grid_0_N uses a fresh key next cycle
+                st.session_state.grid_src_cell = None
+                st.session_state.grid_det_cell = None
+                st.session_state.grid_phase = 0
+                st.session_state.grid_gen += 1
+
+        # Convert grid cell (col, row) → room coordinate (center of 0.5m cell)
         def cell_to_xy(cell, n_c, n_r, rw, rd):
-            col, row = cell
-            x = (col + 0.5) * rw / n_c
-            y = (row + 0.5) * rd / n_r
-            return x, y
+            c, r = cell
+            return (c + 0.5) * rw / n_c, (r + 0.5) * rd / n_r
 
         # Determine positions (defaults if not yet placed)
         if src_cell is not None:
