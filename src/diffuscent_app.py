@@ -277,8 +277,8 @@ def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detec
 
     # Log-transform the concentration for better visualization
     # This stretches the diffusion front where gradients are interesting
-    floor = H2S_THRESHOLD * 0.01    # below this = fully transparent
-    ceiling = H2S_THRESHOLD * 1000  # above this = fully opaque/solid
+    floor = H2S_THRESHOLD * 0.1    # below this = fully transparent
+    ceiling = H2S_THRESHOLD * 100  # above this = fully opaque/solid
 
     # Clip and log-transform (shifted so log values are >= 0)
     C_clipped = np.clip(C_grid, floor, ceiling)
@@ -393,49 +393,64 @@ def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detec
     return fig
 
 
-def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
+def make_2d_contour(snapshot, room_width, room_depth, source_pos, detector_pos):
     """
-    Horizontal slice at nose height (z=1.5 m) as a 2-D heatmap.
-
-    Parameters
-    ----------
-    snapshot      : (t, x, y, z, C)
-    source_pos    : (x, y, z)
-    detector_pos  : (x, y, z)
+    Horizontal slice at nose height — filled contours on white background.
+    Low-concentration areas show white (not colored), so the plume floats.
     """
     t_snap, x_grid, y_grid, z_grid, C_grid = snapshot
 
-    # Find nearest z-index to 1.5 m
     z_idx = int(np.argmin(np.abs(z_grid - 1.5)))
     C_slice = C_grid[:, :, z_idx]  # shape (nx, ny)
 
-    # Log-transform for same visual consistency as 3D
-    floor = H2S_THRESHOLD * 0.01
-    ceiling = H2S_THRESHOLD * 1000
+    # Log-transform with tighter range (×0.1 floor, ×100 ceiling)
+    floor = H2S_THRESHOLD * 0.1
+    ceiling = H2S_THRESHOLD * 100
     C_log = np.log10(np.clip(C_slice, floor, ceiling))
+    log_floor = np.log10(floor)
+    log_ceiling = np.log10(ceiling)
     log_threshold = np.log10(H2S_THRESHOLD)
 
     traces = []
 
-    # Heatmap
+    # Filled contour — colorscale starts transparent at floor so areas with
+    # no concentration show white background (plot_bgcolor="white")
+    colorscale = [
+        [0.0, "rgba(0,200,0,0.0)"],    # fully transparent at floor (blends with white bg)
+        [0.2, "rgba(0,200,0,0.35)"],   # faint green as concentration rises
+        [0.5, "rgba(255,220,0,0.75)"], # yellow near threshold
+        [0.75, "rgba(255,100,0,0.9)"], # orange above threshold
+        [1.0, "rgba(200,0,0,1.0)"],    # red at ceiling
+    ]
+
+    n_levels = 12
     traces.append(
-        go.Heatmap(
+        go.Contour(
             x=y_grid,
             y=x_grid,
             z=C_log,
-            colorscale=[[0, "green"], [0.5, "yellow"], [1.0, "red"]],
+            zmin=log_floor,
+            zmax=log_ceiling,
+            colorscale=colorscale,
+            contours=dict(
+                start=log_floor,
+                end=log_ceiling,
+                size=(log_ceiling - log_floor) / n_levels,
+                coloring="fill",
+                showlines=True,
+                showlabels=False,
+            ),
+            line=dict(width=0.5, color="rgba(120,120,120,0.3)"),
             colorbar=dict(
                 title="H\u2082S level",
-                tickvals=[np.log10(floor), log_threshold, np.log10(ceiling)],
+                tickvals=[log_floor, log_threshold, log_ceiling],
                 ticktext=["\U0001f7e2 Safe", "\U0001f443 Threshold", "\U0001f534 Stinky"],
             ),
-            zmin=np.log10(floor),
-            zmax=np.log10(ceiling),
             name="H\u2082S concentration",
         )
     )
 
-    # Contour at detection threshold
+    # Bold red contour line at detection threshold labeled "👃 Smell Zone"
     if C_slice.max() >= H2S_THRESHOLD:
         traces.append(
             go.Contour(
@@ -446,8 +461,10 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
                     start=log_threshold,
                     end=log_threshold,
                     coloring="none",
+                    showlabels=True,
+                    labelfont=dict(size=11, color="red"),
                 ),
-                line=dict(color="red", width=3, dash="solid"),
+                line=dict(color="red", width=2.5, dash="solid"),
                 showscale=False,
                 name="\U0001f443 Smell Zone",
             )
@@ -459,8 +476,9 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
             x=[source_pos[1]],
             y=[source_pos[0]],
             mode="markers+text",
-            marker=dict(size=14, color="limegreen", symbol="x"),
-            text=["Source 💨"],
+            marker=dict(size=16, color="limegreen", symbol="circle"),
+            text=["💨"],
+            textfont=dict(size=16),
             textposition="top right",
             name="Source",
         )
@@ -472,8 +490,9 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
             x=[detector_pos[1]],
             y=[detector_pos[0]],
             mode="markers+text",
-            marker=dict(size=14, color="red", symbol="x"),
-            text=["Detector 👃"],
+            marker=dict(size=16, color="red", symbol="circle"),
+            text=["👃"],
+            textfont=dict(size=16),
             textposition="top right",
             name="Detector",
         )
@@ -482,11 +501,11 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
     fig = go.Figure(data=traces)
     fig.update_layout(
         title=dict(
-            text=f"Horizontal Slice at Nose Height (z=1.5m) — {t_snap:.0f}s",
+            text=f"Nose-Height Slice — {t_snap:.0f}s",
             x=0.5,
         ),
-        xaxis=dict(title="Y (m)", range=[0, room_depth]),
-        yaxis=dict(title="X (m)", range=[0, room_width]),
+        xaxis=dict(title="Y (m)", range=[0, room_depth], showgrid=True, gridcolor="#eeeeee"),
+        yaxis=dict(title="X (m)", range=[0, room_width], showgrid=True, gridcolor="#eeeeee"),
         paper_bgcolor="white",
         plot_bgcolor="white",
         font=dict(color="#333333"),
@@ -582,31 +601,15 @@ def make_timeline_fig(times, detector_conc, detection_time):
 def main():
     st.sidebar.title("💨 DiffuScent")
 
-    # ── Expander 1: Choose Your Weapon ──────────────────────────────────────
-    with st.sidebar.expander("💨 Choose Your Weapon", expanded=True):
-        profile_name = st.radio(
-            "Gas Profile",
-            list(GAS_PROFILES.keys()),
-            index=3,  # default: Silent But Deadly
-            key="profile_radio",
-        )
-        profile = GAS_PROFILES[profile_name]
+    # Initialize grid placement state
+    if "grid_phase" not in st.session_state:
+        st.session_state.grid_phase = 0      # 0=place source, 1=place detector, 2=done
+    if "grid_src_cell" not in st.session_state:
+        st.session_state.grid_src_cell = None  # (col, row) or None
+    if "grid_det_cell" not in st.session_state:
+        st.session_state.grid_det_cell = None  # (col, row) or None
 
-        st.info(
-            f"**{profile['description']}**\n\n"
-            f"Farty says: _{profile['farty_says']}_"
-        )
-
-        volume_override = st.slider(
-            "How much gas? 💨",
-            min_value=0.05,
-            max_value=1.0,
-            value=float(profile["volume_liters"]),
-            step=0.05,
-            help="tiny toot ↔ full blast",
-        )
-
-    # ── Expander 2: The Room ─────────────────────────────────────────────────
+    # ── Expander 1: The Room ─────────────────────────────────────────────────
     with st.sidebar.expander("🏠 The Room", expanded=False):
         room_width = st.slider("Room Width (m)", 3.0, 10.0, 6.0, step=0.5)
         room_depth = st.slider("Room Depth (m)", 3.0, 10.0, 5.0, step=0.5)
@@ -631,29 +634,76 @@ def main():
             ventilation_tau = float('inf')
             airflow_choice = None
 
-    # ── Expander 3: Positions ────────────────────────────────────────────────
-    with st.sidebar.expander("📍 Positions", expanded=False):
-        src_x_default = round(room_width / 2, 1)
-        src_y_default = round(room_depth / 2, 1)
-        det_x_default = round(min(room_width / 2 + 2.0, room_width - 0.1), 1)
-        det_y_default = round(room_depth / 2, 1)
+    # ── Expander 2: Set Your Positions ───────────────────────────────────────
+    with st.sidebar.expander("📍 Set Your Positions", expanded=True):
+        # Grid dimensions: cap at 8×8, use int room dims
+        n_cols = max(3, min(8, int(room_width)))
+        n_rows = max(3, min(8, int(room_depth)))
 
-        source_x = st.slider(
-            "Source X (m)", 0.1, float(room_width - 0.1),
-            float(min(src_x_default, room_width - 0.1)), step=0.1,
-        )
-        source_y = st.slider(
-            "Source Y (m)", 0.1, float(room_depth - 0.1),
-            float(min(src_y_default, room_depth - 0.1)), step=0.1,
-        )
-        detector_x = st.slider(
-            "Detector X (m)", 0.1, float(room_width - 0.1),
-            float(min(det_x_default, room_width - 0.1)), step=0.1,
-        )
-        detector_y = st.slider(
-            "Detector Y (m)", 0.1, float(room_depth - 0.1),
-            float(min(det_y_default, room_depth - 0.1)), step=0.1,
-        )
+        # Validate stored cells are still in range (room may have shrunk)
+        if st.session_state.grid_src_cell is not None:
+            sc, sr = st.session_state.grid_src_cell
+            if sc >= n_cols or sr >= n_rows:
+                st.session_state.grid_src_cell = None
+                st.session_state.grid_phase = 0
+        if st.session_state.grid_det_cell is not None:
+            dc, dr = st.session_state.grid_det_cell
+            if dc >= n_cols or dr >= n_rows:
+                st.session_state.grid_det_cell = None
+                if st.session_state.grid_phase == 2:
+                    st.session_state.grid_phase = 1
+
+        phase = st.session_state.grid_phase
+        src_cell = st.session_state.grid_src_cell
+        det_cell = st.session_state.grid_det_cell
+
+        # Instruction label
+        if phase == 0:
+            st.caption("👆 Click a cell to place **💨 SOURCE** (seat)")
+        elif phase == 1:
+            st.caption("👆 Click a cell to place **👃 DETECTOR** (nose)")
+        else:
+            st.caption("✅ Placed! Click any cell to **reset**")
+
+        # Render grid — rows top-to-bottom (row n_rows-1 = "back of room")
+        for row in range(n_rows - 1, -1, -1):
+            btn_cols = st.columns(n_cols, gap="small")
+            for col in range(n_cols):
+                is_src = (src_cell == (col, row))
+                is_det = (det_cell == (col, row))
+                label = "💨" if is_src else ("👃" if is_det else "·")
+                if btn_cols[col].button(label, key=f"g_{col}_{row}", use_container_width=True):
+                    if phase == 0:
+                        st.session_state.grid_src_cell = (col, row)
+                        st.session_state.grid_phase = 1
+                    elif phase == 1:
+                        st.session_state.grid_det_cell = (col, row)
+                        st.session_state.grid_phase = 2
+                    else:
+                        # Reset
+                        st.session_state.grid_src_cell = None
+                        st.session_state.grid_det_cell = None
+                        st.session_state.grid_phase = 0
+
+        # Convert grid cell (col, row) → room coordinate (center of cell in meters)
+        def cell_to_xy(cell, n_c, n_r, rw, rd):
+            col, row = cell
+            x = (col + 0.5) * rw / n_c
+            y = (row + 0.5) * rd / n_r
+            return x, y
+
+        # Determine positions (defaults if not yet placed)
+        if src_cell is not None:
+            source_x, source_y = cell_to_xy(src_cell, n_cols, n_rows, room_width, room_depth)
+        else:
+            source_x = room_width / 2
+            source_y = room_depth / 2
+
+        if det_cell is not None:
+            detector_x, detector_y = cell_to_xy(det_cell, n_cols, n_rows, room_width, room_depth)
+        else:
+            detector_x = min(room_width / 2 + 2.0, room_width - 0.5)
+            detector_y = room_depth / 2
 
         source_z = 0.5    # fixed: seat height
         detector_z = 1.5  # fixed: nose height
@@ -664,6 +714,30 @@ def main():
             + (detector_z - source_z) ** 2
         ))
         st.metric("Distance", f"{dist:.1f} m")
+
+    # ── Expander 3: Choose Your Weapon ───────────────────────────────────────
+    with st.sidebar.expander("💨 Choose Your Weapon", expanded=True):
+        profile_name = st.radio(
+            "Gas Profile",
+            list(GAS_PROFILES.keys()),
+            index=3,  # default: Silent But Deadly
+            key="profile_radio",
+        )
+        profile = GAS_PROFILES[profile_name]
+
+        st.info(
+            f"**{profile['description']}**\n\n"
+            f"Farty says: _{profile['farty_says']}_"
+        )
+
+        volume_override = st.slider(
+            "How much gas? 💨",
+            min_value=0.05,
+            max_value=1.0,
+            value=float(profile["volume_liters"]),
+            step=0.05,
+            help="tiny toot ↔ full blast",
+        )
 
     # ── Launch button (always visible, outside expanders) ────────────────────
     run_sim = st.sidebar.button("💨 Let It Rip!", use_container_width=True, type="primary")
@@ -757,9 +831,9 @@ def main():
     fig_3d = make_3d_fig(chosen_snap, rw, rd, rh, src_pos, det_pos)
     st.plotly_chart(fig_3d, use_container_width=True)
 
-    # 2D heatmap - in expander
+    # 2D contour - in expander
     with st.expander("📊 2D Stink Map — Nose-Height Slice"):
-        fig_2d = make_2d_heatmap(chosen_snap, rw, rd, src_pos, det_pos)
+        fig_2d = make_2d_contour(chosen_snap, rw, rd, src_pos, det_pos)
         st.plotly_chart(fig_2d, use_container_width=True)
 
     st.subheader("📈 H₂S Concentration at Detector Over Time")
