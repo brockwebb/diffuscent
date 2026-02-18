@@ -275,7 +275,20 @@ def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detec
     t_snap, x_grid, y_grid, z_grid, C_grid = snapshot
     X, Y, Z = np.meshgrid(x_grid, y_grid, z_grid, indexing="ij")
 
+    # Log-transform the concentration for better visualization
+    # This stretches the diffusion front where gradients are interesting
+    floor = H2S_THRESHOLD * 0.01    # below this = fully transparent
+    ceiling = H2S_THRESHOLD * 1000  # above this = fully opaque/solid
+
+    # Clip and log-transform (shifted so log values are >= 0)
+    C_clipped = np.clip(C_grid, floor, ceiling)
+    log_C = np.log10(C_clipped)          # e.g. range roughly [-10, -4] or similar
+    log_floor = np.log10(floor)
+    log_ceiling = np.log10(ceiling)
+    log_threshold = np.log10(H2S_THRESHOLD)
+
     c_flat = C_grid.flatten()
+    log_flat = log_C.flatten()
     c_max = float(c_flat.max())
 
     traces = _room_wireframe(room_width, room_depth, room_height)
@@ -287,17 +300,48 @@ def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detec
                 x=X.flatten(),
                 y=Y.flatten(),
                 z=Z.flatten(),
-                value=c_flat,
-                isomin=c_max * 0.01,
-                isomax=c_max,
-                opacity=0.1,
-                surface_count=15,
+                value=log_flat,
+                isomin=log_floor,
+                isomax=log_ceiling,
+                opacity=0.08,
+                surface_count=20,
                 colorscale=[[0, "green"], [0.5, "yellow"], [1.0, "red"]],
+                opacityscale=[
+                    [0, 0],         # fully transparent at floor
+                    [0.4, 0.02],    # barely visible at low concentrations
+                    [0.7, 0.15],    # semi-transparent near threshold
+                    [1.0, 0.9],     # nearly opaque at high concentrations
+                ],
                 showscale=True,
-                colorbar=dict(title="H\u2082S (kg/m\u00b3)", x=1.02),
+                colorbar=dict(
+                    title="H\u2082S level",
+                    tickvals=[log_floor, log_threshold, log_ceiling],
+                    ticktext=["\U0001f7e2 Safe", "\U0001f443 Threshold", "\U0001f534 Stinky"],
+                    x=1.02,
+                ),
                 name="Gas cloud",
             )
         )
+
+        # Detection threshold wireframe — red isosurface at exactly the threshold
+        # This is the "busted boundary" kids watch expand toward the detector
+        if c_max >= H2S_THRESHOLD:
+            traces.append(
+                go.Isosurface(
+                    x=X.flatten(),
+                    y=Y.flatten(),
+                    z=Z.flatten(),
+                    value=c_flat,  # use RAW values for threshold isosurface (not log)
+                    isomin=H2S_THRESHOLD,
+                    isomax=H2S_THRESHOLD * 1.001,
+                    surface=dict(count=1, fill=0.0),  # wireframe only
+                    colorscale=[[0, "red"], [1, "red"]],
+                    showscale=False,
+                    opacity=0.5,
+                    name="\U0001f443 Smell boundary",
+                    caps=dict(x=dict(show=False), y=dict(show=False), z=dict(show=False)),
+                )
+            )
 
     # Source marker (green sphere)
     traces.append(
@@ -365,6 +409,12 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
     z_idx = int(np.argmin(np.abs(z_grid - 1.5)))
     C_slice = C_grid[:, :, z_idx]  # shape (nx, ny)
 
+    # Log-transform for same visual consistency as 3D
+    floor = H2S_THRESHOLD * 0.01
+    ceiling = H2S_THRESHOLD * 1000
+    C_log = np.log10(np.clip(C_slice, floor, ceiling))
+    log_threshold = np.log10(H2S_THRESHOLD)
+
     traces = []
 
     # Heatmap
@@ -372,11 +422,15 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
         go.Heatmap(
             x=y_grid,
             y=x_grid,
-            z=C_slice,
+            z=C_log,
             colorscale=[[0, "green"], [0.5, "yellow"], [1.0, "red"]],
-            colorbar=dict(title="H\u2082S (kg/m\u00b3)"),
-            zmin=0,
-            zmax=float(C_slice.max()) if C_slice.max() > 0 else 1e-10,
+            colorbar=dict(
+                title="H\u2082S level",
+                tickvals=[np.log10(floor), log_threshold, np.log10(ceiling)],
+                ticktext=["\U0001f7e2 Safe", "\U0001f443 Threshold", "\U0001f534 Stinky"],
+            ),
+            zmin=np.log10(floor),
+            zmax=np.log10(ceiling),
             name="H\u2082S concentration",
         )
     )
@@ -387,15 +441,15 @@ def make_2d_heatmap(snapshot, room_width, room_depth, source_pos, detector_pos):
             go.Contour(
                 x=y_grid,
                 y=x_grid,
-                z=C_slice,
+                z=C_log,
                 contours=dict(
-                    start=H2S_THRESHOLD,
-                    end=H2S_THRESHOLD,
+                    start=log_threshold,
+                    end=log_threshold,
                     coloring="none",
                 ),
-                line=dict(color="cyan", width=2, dash="dash"),
+                line=dict(color="red", width=3, dash="solid"),
                 showscale=False,
-                name="Detection threshold",
+                name="\U0001f443 Smell Zone",
             )
         )
 
@@ -698,15 +752,13 @@ def main():
     snap_idx = int(np.argmin([abs(s[0] - selected_time) for s in snapshots]))
     chosen_snap = snapshots[snap_idx]
 
-    col1, col2 = st.columns([3, 2])
+    # 3D chart - full width
+    st.subheader("🌫️ 3D Gas Cloud")
+    fig_3d = make_3d_fig(chosen_snap, rw, rd, rh, src_pos, det_pos)
+    st.plotly_chart(fig_3d, use_container_width=True)
 
-    with col1:
-        st.subheader("🌫️ 3D Gas Cloud")
-        fig_3d = make_3d_fig(chosen_snap, rw, rd, rh, src_pos, det_pos)
-        st.plotly_chart(fig_3d, use_container_width=True)
-
-    with col2:
-        st.subheader("👃 Nose-Height Slice")
+    # 2D heatmap - in expander
+    with st.expander("📊 2D Stink Map — Nose-Height Slice"):
         fig_2d = make_2d_heatmap(chosen_snap, rw, rd, src_pos, det_pos)
         st.plotly_chart(fig_2d, use_container_width=True)
 
