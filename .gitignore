@@ -1,3 +1,7 @@
+# Task tracking and handoffs (local only)
+cc_tasks/
+handoffs/
+
 # macOS
 *.DS_Store
 *.tmp
