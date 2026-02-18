@@ -763,6 +763,10 @@ def main():
             key=chart_key,
         )
 
+        # DEBUG — remove after diagnosing click behavior
+        if grid_event and grid_event.selection and grid_event.selection.points:
+            st.caption(f"🐛 raw event: {grid_event.selection.points[0]}")
+
         # Process click — use point_index (robust) with x,y fallback
         pts = grid_event.selection.points if grid_event and grid_event.selection else []
         if pts:
