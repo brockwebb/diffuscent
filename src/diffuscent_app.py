@@ -379,6 +379,11 @@ def make_3d_fig(snapshot, room_width, room_depth, room_height, source_pos, detec
             yaxis=dict(visible=False),
             zaxis=dict(visible=False),
             bgcolor="rgba(240,248,255,1)",  # light blue-white, kid-friendly
+            camera=dict(
+                eye=dict(x=0, y=-0.3, z=1.8),   # top-down drone view, slightly behind
+                up=dict(x=0, y=1, z=0),           # Y-axis = "depth into room" matches grid
+                center=dict(x=0, y=0, z=0),
+            ),
         ),
         paper_bgcolor="rgba(240,248,255,1)",
         font=dict(color="#333333"),
